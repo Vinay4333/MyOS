@@ -35,3 +35,23 @@ Newest entries at the bottom.
 - `make run` opens QEMU and shows a single `A`.
 
 **Experiments to try:** change the character; remove the signature and watch the BIOS refuse to boot.
+
+---
+
+## M1 / Step 2 — `print_string`
+**Files:** `boot/boot.asm`
+
+**What it does:** a reusable routine that prints a 0-terminated string via BIOS `int 0x10`; boots and shows `Hello from MyOS!`.
+
+**What we learned:**
+- A string is bytes in memory; a `0` byte marks the end (same as C strings).
+- `lodsb`: `al = [si]; si++` in one instruction. `si` is the conventional "read pointer" register.
+- `cld` clears the **direction flag** so `lodsb` goes forward. BIOS may leave it set, so we set it ourselves. Never assume firmware state.
+- `call` pushes the return address on the stack and jumps; `ret` pops it. First real use of the stack from Step 1.
+- `or al, al` tests for zero without changing `al`; `jz` jumps if it was zero.
+- Newline needs both CR (13) and LF (10).
+- Calling convention (ours, informal): argument in a register, document which registers are clobbered in the routine's header comment.
+
+**Verify:** `make run` shows `Hello from MyOS!`. `strings build/os.img` shows the text.
+
+**Experiments:** remove the `0` terminator (prints garbage past the string); call the routine twice with different strings.

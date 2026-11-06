@@ -12,3 +12,9 @@ Terms in the order we meet them.
 - **`hlt`**: instruction that sleeps the CPU until the next interrupt.
 - **Little-endian**: multi-byte values are stored low byte first, so `0xAA55` is stored as `55 AA`.
 - **QEMU**: software that emulates a whole PC so we can boot our OS safely.
+- **Null-terminated string**: bytes ending with a `0` byte so code knows where the string stops.
+- **`si` (source index)**: register conventionally used as a pointer to data being read.
+- **`lodsb`**: load the byte at `[si]` into `al`, then advance `si`.
+- **Direction flag (DF)**: CPU flag deciding whether string instructions move forward (0, via `cld`) or backward (1).
+- **`call` / `ret`**: call a routine (pushing the return address on the stack) / return from it.
+- **CR / LF**: carriage return (13, cursor to line start) and line feed (10, cursor down one line).
