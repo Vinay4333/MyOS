@@ -55,3 +55,22 @@ Newest entries at the bottom.
 **Verify:** `make run` shows `Hello from MyOS!`. `strings build/os.img` shows the text.
 
 **Experiments:** remove the `0` terminator (prints garbage past the string); call the routine twice with different strings.
+
+---
+
+## M1 / Step 3 — `print_hex` and the boot drive
+**Files:** `boot/boot.asm`
+
+**What it does:** `print_hex` prints a 16-bit value in `dx` as 4 hex digits. Boot prints `0xBEEF` (test) and the boot drive number (`0x0080`).
+
+**What we learned:**
+- 1 hex digit = 4 bits = a **nibble**. That is why hex is the natural way to read binary data.
+- `rol dx, 4` rotates the top nibble into the bottom; `and al, 0x0F` isolates it. Four rotations of 4 bits restore `dx`.
+- Nibble to ASCII: add `'0'`; if the result is past `'9'`, add 7 more to jump the gap to `'A'`.
+- `loop` = `cx--; if (cx != 0) jump`.
+- **Save registers you use** (`push`/`pop`) so the caller's values survive. Better convention than "clobbers".
+- The BIOS passes the **boot drive number in `dl`** at entry. `0x80` = first hard disk. Save it before anything overwrites `dl`; we need it to read the disk.
+
+**Verify:** `make run` shows `Test value:  0xBEEF` and `Boot drive:  0x0080`.
+
+**Experiments:** try `0x09AF` (digits + letters); break the `'A' - '9' - 1` adjustment; overwrite `dl` before saving it.

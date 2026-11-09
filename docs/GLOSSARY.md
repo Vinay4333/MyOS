@@ -18,3 +18,7 @@ Terms in the order we meet them.
 - **Direction flag (DF)**: CPU flag deciding whether string instructions move forward (0, via `cld`) or backward (1).
 - **`call` / `ret`**: call a routine (pushing the return address on the stack) / return from it.
 - **CR / LF**: carriage return (13, cursor to line start) and line feed (10, cursor down one line).
+- **Nibble**: 4 bits = one hex digit.
+- **`rol`**: rotate left; bits shifted out the top re-enter at the bottom.
+- **Hex (hexadecimal)**: base-16 notation using 0-9 and A-F; each digit is one nibble.
+- **Boot drive number**: value the BIOS passes in `dl` identifying which disk it booted from (`0x80` = first hard disk).
