@@ -6,7 +6,9 @@
 [org 0x7C00]            ; we are loaded at 0x7C00; make label addresses match
 
 STAGE2_ADDR    equ 0x7E00   ; right after this sector; free RAM up to ~0x7FFFF
-STAGE2_SECTORS equ 2        ; must match the padded size of stage2.bin (2*512)
+%ifndef STAGE2_SECTORS      ; passed by the Makefile: size of stage2.bin / 512
+    %error "STAGE2_SECTORS not defined: build with make, not by hand"
+%endif
 STAGE2_LBA     equ 1        ; LBA 0 = this sector, so stage 2 starts at LBA 1
 
 start:
