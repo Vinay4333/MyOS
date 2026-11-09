@@ -74,3 +74,28 @@ Newest entries at the bottom.
 **Verify:** `make run` shows `Test value:  0xBEEF` and `Boot drive:  0x0080`.
 
 **Experiments:** try `0x09AF` (digits + letters); break the `'A' - '9' - 1` adjustment; overwrite `dl` before saving it.
+
+---
+
+## M1 / Step 4 — Two-stage boot: read stage 2 from disk
+**Files:** `boot/boot.asm` (stage 1), `boot/stage2.asm` (new), `boot/print16.asm` (new, shared), `Makefile`
+
+**What it does:** stage 1 (the 512-byte boot sector) reads stage 2 (2 sectors) from disk into `0x7E00` and jumps to it. Stage 2 prints its own address, the boot drive, and a string stored in *its* second sector, proving both sectors loaded.
+
+**Why two stages:** 512 bytes is too small for a real bootloader. Stage 1 only loads; stage 2 has room for the real work (memory map, mode switches, kernel loading).
+
+**What we learned:**
+- **CHS vs LBA.** CHS (cylinder/head/sector) mirrors old floppy geometry and fails on big disks. LBA numbers sectors 0,1,2,... from the start. We use BIOS `int 0x13`, `ah=0x42` (extended read, LBA).
+- **Disk Address Packet (DAP):** 16-byte struct the BIOS reads via `ds:si`: size (0x10), reserved, sector count, destination offset, destination segment, 64-bit start LBA.
+- **Carry flag = BIOS error signal.** After `int 0x13`, `CF=1` means failure and `ah` holds the code; `jc` branches on it. Always check it.
+- **Error codes are BIOS-specific.** An out-of-range LBA gave `0x01` (invalid parameter) on SeaBIOS, not `0x04` (sector not found) as expected. Don't rely on specific codes.
+- Disk layout: LBA 0 = stage 1, LBA 1-2 = stage 2. The Makefile builds each separately and `cat`s them into `os.img`.
+- `%include` + `-I boot/` shares code between stages. `[org]` must match where the code is actually loaded, or every label address is wrong.
+- `times N - ($ - $$) db 0` pads to an exact size and makes NASM error if the code grew past it. Stage 1 must stay <= 510 bytes.
+- Stage 1 hands the boot drive to stage 2 in `dl`, the same convention the BIOS used with us.
+
+**Memory map so far:** `0x7C00-0x7DFF` stage 1 (stack grows down from `0x7C00`), `0x7E00-0x81FF` stage 2.
+
+**Verify:** `make run` shows stage 1 message, then `Running at:  0x7E00`, `Boot drive:  0x0080`, and the "Sector 2 ... loaded OK" line.
+
+**Experiments done:** `STAGE2_LBA = 4` (past end of image) gave `Disk read error 0x0100`. Also try `STAGE2_SECTORS = 1` (last line disappears).

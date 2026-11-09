@@ -22,3 +22,9 @@ Terms in the order we meet them.
 - **`rol`**: rotate left; bits shifted out the top re-enter at the bottom.
 - **Hex (hexadecimal)**: base-16 notation using 0-9 and A-F; each digit is one nibble.
 - **Boot drive number**: value the BIOS passes in `dl` identifying which disk it booted from (`0x80` = first hard disk).
+- **Stage 1 / Stage 2**: a bootloader split in two. Stage 1 fits in the boot sector and loads the larger stage 2.
+- **CHS**: Cylinder/Head/Sector, the old geometry-based way to address disk sectors.
+- **LBA**: Logical Block Address; sectors numbered 0, 1, 2... from the start of the disk.
+- **Disk Address Packet (DAP)**: 16-byte structure telling the BIOS what to read for an LBA read.
+- **Carry flag (CF)**: CPU flag; BIOS calls set it to signal an error. Test with `jc`.
+- **`%include`**: NASM directive that pastes another source file in at that point.

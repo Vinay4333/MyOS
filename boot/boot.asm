@@ -1,97 +1,64 @@
-; boot/boot.asm - the 512-byte boot sector.
+; boot/boot.asm - STAGE 1: the 512-byte boot sector.
 ; The BIOS loads this to physical address 0x7C00 and jumps to it, in 16-bit
-; real mode. See https://wiki.osdev.org/Boot_Sequence
+; real mode. Its only job: load stage 2 from the disk and jump to it.
+; See https://wiki.osdev.org/Boot_Sequence
 [bits 16]               ; emit 16-bit instructions (CPU is in real mode)
 [org 0x7C00]            ; we are loaded at 0x7C00; make label addresses match
 
+STAGE2_ADDR    equ 0x7E00   ; right after this sector; free RAM up to ~0x7FFFF
+STAGE2_SECTORS equ 2        ; must match the padded size of stage2.bin (2*512)
+STAGE2_LBA     equ 1        ; LBA 0 = this sector, so stage 2 starts at LBA 1
+
 start:
     mov [boot_drive], dl ; BIOS passes the boot drive number in dl. Save it
-                        ; FIRST, before anything can overwrite dl (needed for
-                        ; disk reads later). [org 0x7C00] makes this address right.
+                        ; FIRST, before anything can overwrite dl.
     cli                 ; disable interrupts while we set up segments/stack
     xor ax, ax          ; ax = 0
     mov ds, ax          ; data segment  = 0  (address = 0*16 + offset)
     mov es, ax          ; extra segment = 0
     mov ss, ax          ; stack segment = 0
     mov sp, 0x7C00      ; stack grows DOWN from just below our own code
-    sti                 ; interrupts back on (the BIOS int 0x10 may need them)
-    cld                 ; direction flag = 0: string ops (lodsb) move FORWARD.
-                        ; BIOS may leave it set, so never assume.
+    sti                 ; interrupts back on (BIOS int 0x10/0x13 may need them)
+    cld                 ; direction flag = 0: string ops move FORWARD.
 
-    mov si, msg_hello   ; si = address of the string to print
-    call print_string   ; push return address on the stack, jump to routine
-
-    mov si, msg_test    ; test value: we expect to see 0xBEEF
-    call print_string
-    mov dx, 0xBEEF
-    call print_hex
-    mov si, msg_crlf
+    mov si, msg_stage1
     call print_string
 
-    mov si, msg_drive   ; boot drive: 0x0080 = first hard disk on a BIOS PC
-    call print_string
-    xor dx, dx
-    mov dl, [boot_drive]
-    call print_hex
-    mov si, msg_crlf
-    call print_string
+    ; --- read stage 2 from disk using BIOS "extended read" (LBA) -----------
+    mov ah, 0x42        ; int 0x13 fn 42h: extended read sectors (LBA)
+    mov dl, [boot_drive]; which disk
+    mov si, dap         ; ds:si -> Disk Address Packet describing the read
+    int 0x13            ; do it. On failure: CF=1 and ah=error code
+    jc disk_error
 
+    mov dl, [boot_drive]; hand the boot drive to stage 2 in dl
+    jmp STAGE2_ADDR     ; jump into stage 2; we never come back
+
+disk_error:
+    mov dx, ax          ; save error code (ah) before print_string clobbers ax
+    mov si, msg_diskerr
+    call print_string
+    call print_hex      ; print dx; the error code is the HIGH byte (e.g. 0x0100)
 .hang:
-    hlt                 ; sleep the CPU until the next interrupt (saves power)
-    jmp .hang           ; ...and sleep again, forever
+    hlt
+    jmp .hang
 
-; ---------------------------------------------------------------------------
-; print_string: print a 0-terminated string using BIOS teletype output.
-;   in:  si = address of string
-;   out: nothing. Clobbers ax, bx (si ends up just past the terminator).
-; ---------------------------------------------------------------------------
-print_string:
-    mov ah, 0x0E        ; BIOS video fn 0Eh: teletype output (print char in al)
-    xor bx, bx          ; bh = display page 0, bl = colour (unused in text mode)
-.next:
-    lodsb               ; al = [si]; si = si + 1
-    or al, al           ; set flags from al without changing it (is it 0?)
-    jz .done            ; zero terminator -> finished
-    int 0x10            ; BIOS prints al (ah is still 0x0E)
-    jmp .next
-.done:
-    ret                 ; pop return address from the stack, jump back
-
-; ---------------------------------------------------------------------------
-; print_hex: print a 16-bit value as 4 hex digits (no "0x" prefix).
-;   in:  dx = value to print
-;   out: nothing. Preserves all registers except dx (dx ends up unchanged,
-;        since 4 rotates by 4 bits = a full 16-bit turn).
-; ---------------------------------------------------------------------------
-print_hex:
-    push ax
-    push bx
-    push cx
-    mov cx, 4           ; 4 nibbles in 16 bits
-    mov ah, 0x0E        ; BIOS teletype
-    xor bx, bx          ; page 0
-.digit:
-    rol dx, 4           ; rotate left 4: top nibble moves into the low 4 bits
-    mov al, dl
-    and al, 0x0F        ; keep only the low nibble: 0..15
-    add al, '0'         ; 0..9 -> '0'..'9'
-    cmp al, '9'
-    jbe .print          ; it was 0..9, done converting
-    add al, 'A' - '9' - 1   ; 10..15 -> 'A'..'F' (skip the 7 chars between '9' and 'A')
-.print:
-    int 0x10
-    loop .digit         ; cx = cx - 1; jump if cx != 0
-    pop cx
-    pop bx
-    pop ax
-    ret
+%include "print16.asm"  ; print_string, print_hex (shared with stage 2)
 
 ; --- data ------------------------------------------------------------------
-boot_drive: db 0                              ; filled in at start
-msg_hello:  db 'Hello from MyOS!', 13, 10, 0  ; 13=CR, 10=LF, 0=terminator
-msg_test:   db 'Test value:  0x', 0
-msg_drive:  db 'Boot drive:  0x', 0
-msg_crlf:   db 13, 10, 0
+boot_drive:  db 0
+msg_stage1:  db 'Stage 1: loading stage 2...', 13, 10, 0
+msg_diskerr: db 'Disk read error 0x', 0
+
+; Disk Address Packet: 16 bytes, tells the BIOS what to read and where to put it.
+align 4
+dap:
+    db 0x10                 ; size of this packet (16 bytes)
+    db 0                    ; reserved, must be 0
+    dw STAGE2_SECTORS       ; how many sectors to read
+    dw STAGE2_ADDR          ; destination offset...
+    dw 0x0000               ; ...and destination segment (0000:7E00 = 0x7E00)
+    dq STAGE2_LBA           ; first sector to read (64-bit LBA)
 
 times 510 - ($ - $$) db 0   ; pad with zeros up to byte 510
 dw 0xAA55                   ; boot signature; stored little-endian as 55 AA
